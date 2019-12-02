@@ -1,40 +1,36 @@
 import os
 
 from flask import Flask
+from flask_migrate import Migrate
+from flask_sqlalchemy import SQLAlchemy
+from .config import Config
+from flask_cors import CORS
+from flask_login import LoginManager
+
+db = SQLAlchemy()
+migrate = Migrate()
+cors = CORS()
+login_manager = LoginManager()
 
 
-def create_app(test_config=None):
-    app = Flask(__name__, instance_relative_config=True)
-    app.config.from_mapping(
-        SECRET_KEY='dev',
-        DATABASE=os.path.join(app.instance_path, 'ClassSpace.sqlite')
-    )
+def create_app():
+    app = Flask(__name__, instance_relative_config=False)
+    app.config.from_object(Config)
 
-    if not test_config:
-        # If instance config exists and not in test mode, load from file
-        app.config.from_pyfile('config.py', silent=True)
-
-    else:
-        # Otherwise load the test config
-        app.config.from_mapping(test_config)
-
-    try:
-        os.makedirs(app.instance_path)
-    except OSError:
-        pass
-
-    @app.route('/hello', methods=['GET'])
-    def hello():
-        return 'Hello, World'
-
-    from . import db
     db.init_app(app)
+    cors.init_app(app)
+    login_manager.init_app(app)
+    login_manager.login_view = 'auth.login'
 
-    from . import auth
-    app.register_blueprint(auth.bp)
+    # migrate.init_app(app, db)
+    with app.app_context():
+        from . import auth
+        app.register_blueprint(auth.bp)
 
-    from . import dashboard
-    app.register_blueprint(dashboard.bp)
-    app.add_url_rule('/', endpoint='dashboard')
+        from . import dashboard
+        app.register_blueprint(dashboard.bp)
+        app.add_url_rule('/dashboard', endpoint='dashboard')
 
-    return app
+        db.create_all()
+
+        return app

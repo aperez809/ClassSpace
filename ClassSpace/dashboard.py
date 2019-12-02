@@ -7,14 +7,16 @@ from flask.json import jsonify
 
 from werkzeug.exceptions import abort
 
-from ClassSpace.auth import login_required
-from ClassSpace.db import get_db
+from flask_login import login_required, current_user
+from .data.models.user import db, User
+from .data.models.building import Building
+from .data.models.classroom import Classroom
 
 
 bp = Blueprint('dashboard', __name__)
 
 
-@bp.route('/', methods=['GET'])
+@bp.route('/dashboard', methods=['GET'])
 @login_required
 def get_dashboard():
     """
@@ -22,18 +24,17 @@ def get_dashboard():
         1) Graph of hourly room availability for the current day
         2) Availability of rooms by building
     """
-    db = get_db()
 
     today = datetime.today()
     # Get user's school so that we only query for buildings at that school
-    user_school = db.execute(
-        'SELECT * FROM users WHERE id = ?', (session.get('user_id')),
-    ).fetchone()
+    user_school = User.query.filter(
+        User.id == current_user.id
+    ).first()
 
     # Get all buildings on campus so that we can display them each on the dashboard
-    buildings = db.execute(
-        'SELECT * FROM buildings WHERE school_id = ?', (user_school['school_id'])
-    ).fetchall()
+    buildings = Building.query.filter(
+        Building.school_id == user_school.school_id
+    ).all()
 
     # Get count of available rooms by building, using the current time (+/- timezone offset)
     avail_rooms_by_building = db.execute(
@@ -49,9 +50,10 @@ def get_dashboard():
         )
     ).fetchall()
 
-    total_rooms = db.execute(
-        'SELECT count(*) FROM classrooms GROUP BY building_id'
-    ).fetchall()
+    total_rooms = Classroom.query.filter()
+    #     db.execute(
+    #     'SELECT count(*) FROM classrooms GROUP BY building_id'
+    # ).fetchall()
 
     return jsonify(
         buildings=buildings,
